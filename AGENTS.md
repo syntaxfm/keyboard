@@ -3,7 +3,7 @@
 Guidance for coding agents working in this repo.
 
 ## What this is
-A WebHID configurator for the Syntax W909 macro pad (USB `b6a4:4100` cable, `b6a4:4101` 2.4G receiver).
+The Syntax Keyboard Configurator: a WebHID configurator for the Syntax W909 macro pad (USB `b6a4:4100` cable, `b6a4:4101` 2.4G receiver).
 The protocol reference is `device-info/PROTOCOL.md`; read it before touching device code. Sources, findings and open questions are in `device-info/README.md`.
 
 ## Layout

@@ -107,7 +107,7 @@
       return false;
     }
     if (!dev) {
-      if (!auto) showHelp("No W909 selected. Pick the one named “W909 Pro USB”");
+      if (!auto) showHelp("No keyboard selected. Pick the one named “W909 Pro USB”");
       return false;
     }
     localStorage.setItem("w909-connected", "1");
@@ -613,8 +613,8 @@
 
   function parseBackup(text) {
     let d;
-    try { d = JSON.parse(text); } catch { throw new Error("That file isn't a W909 backup"); }
-    if (d?.format !== "w909-backup" || d.version !== 1) throw new Error("That file isn't a W909 backup");
+    try { d = JSON.parse(text); } catch { throw new Error("That file isn't a Syntax keyboard backup"); }
+    if (d?.format !== "w909-backup" || d.version !== 1) throw new Error("That file isn't a Syntax keyboard backup");
     const macros = {};
     for (const [slot, m] of Object.entries(d.macros || {})) {
       const n = Number(slot);

@@ -30,7 +30,7 @@ const W909Board3D = (() => {
 
   const COLORS = { orange: "#e07c12", dark: "#252629", light: "#8c8d90", case: "#222224", plate: "#0b0b0c", logo: "#e9a10f" };
   const INK = { orange: "#4f3c2c", dark: "#f3f3f3", light: "#ffffff" };
-  const ACCENT = "#6c8cff";
+  const ACCENT = "#fabf46"; // Syntax yellow
 
   // ---------- geometry helpers ----------
   function roundedRect(shape, x, y, w, h, r) {
@@ -573,7 +573,7 @@ const W909Board3D = (() => {
         // Held keys sink; the selected one floats up a little.
         p.travel += ((pressed ? p.max : selected ? -1.2 : 0) - p.travel) * (pressed ? 0.45 : 0.15);
         p.group.position.y = p.baseY - p.travel;
-        const e = selected ? 0.05 : p === hover ? 0.06 : 0;
+        const e = p === hover && !selected ? 0.04 : 0;
         for (const m of p.mats) m.emissiveIntensity += (e - m.emissiveIntensity) * 0.25;
         v.copy(p.anchor).project(camera);
         p.el.style.transform = `translate(${((v.x + 1) / 2) * w}px, ${((1 - v.y) / 2) * h}px) translate(-50%, -50%)`;
