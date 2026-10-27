@@ -3,18 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>W909 Configurator</title>
-  <meta name="description" content="Configure the Syntax W909 macro pad in your browser: remap keys, the knob and joystick, shortcuts, typed text, lighting and profiles. No downloads.">
-  <meta property="og:title" content="W909 Configurator">
-  <meta property="og:description" content="Remap the Syntax W909 macro pad's keys, knob, joystick and lighting right from your browser. No downloads.">
+  <title>Syntax Keyboard Configurator</title>
+  <meta name="description" content="Configure the Syntax keyboard (W909 macro pad) in your browser: remap keys, the knob and joystick, shortcuts, typed text, lighting and profiles. No downloads.">
+  <meta property="og:title" content="Syntax Keyboard Configurator">
+  <meta property="og:description" content="Remap the Syntax keyboard's keys, knob, joystick and lighting right from your browser. No downloads.">
   <meta property="og:type" content="website">
-  <meta name="theme-color" content="#111318">
-  <link rel="icon" href="favicon.ico" sizes="16x16 32x32">
+  <meta name="theme-color" content="#000000">
+  <meta property="og:image" content="brand/apple-touch-icon.png">
+  <link rel="icon" href="brand/favicon.png" type="image/png">
+  <link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header>
-    <h1>W909 Configurator</h1>
+    <h1 class="brand"><img src="brand/syntax-logo.webp" alt="Syntax" width="720" height="240"><span>Keyboard<br>Configurator</span></h1>
     <div class="conn">
       <span id="status">Not connected</span>
       <button id="connect" class="primary">Connect keyboard</button>
@@ -26,7 +31,7 @@
   </div>
 
   <div id="intro" class="banner">
-    Plug the W909 in with its USB cable, then click <b>Connect keyboard</b> and choose
+    Plug the Syntax keyboard in with its USB cable, then click <b>Connect keyboard</b> and choose
     <b>“W909 Pro USB”</b>. Changes are written to the keyboard as soon as you apply them.
   </div>
 
@@ -86,7 +91,7 @@ sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</pre>
         <div class="board-wrap">
         <div class="offline-msg">
           <b>Disconnected</b>
-          <span>Plug in the W909 with its USB cable and click <b>Connect keyboard</b>.</span>
+          <span>Plug in the keyboard with its USB cable and click <b>Connect keyboard</b>.</span>
         </div>
         <div class="board" id="board">
           <div class="row-a">

@@ -1,4 +1,4 @@
-# W909 Configurator
+# Syntax Keyboard Configurator
 
 A browser-based configurator for the **Syntax W909** macro pad (sold as the "W909 Pro" / "W909 Wireless macro"): 15 keys, a knob and a joystick.
 Remap everything right from a web page, with no app to download.
