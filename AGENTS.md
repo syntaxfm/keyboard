@@ -8,8 +8,8 @@ The protocol reference is `device-info/PROTOCOL.md`; read it before touching dev
 
 ## Layout
 - `web/` is the shipped app: plain HTML/CSS/JS, **no build step, no modules, no dependencies**. Scripts load as classic
-  `<script>` tags in this order: `w909-protocol.js` → `w909-keys.js` → `w909-mock.js` → `app.js`. Each file defines one global
-  (`W909`, `W909Keys`, `W909Mock`); `app.js` is an IIFE.
+  `<script>` tags in this order: `w909-protocol.js` → `w909-keys.js` → `w909-mock.js` → `w909-effects.js` → `app.js`. Each file defines one global
+  (`W909`, `W909Keys`, `W909Mock`, `W909Effects`); `app.js` is an IIFE.
 - `tools/`: Swift probes (`w909.swift`, `w909-bridge.swift`) and `test-protocol.mjs`, which runs the real web protocol code under Node against the keyboard.
 - `device-info/`: the single home for what we know about the device (sources with links, findings, protocol, raw dumps).
   Record new findings there.
@@ -23,6 +23,8 @@ The protocol reference is `device-info/PROTOCOL.md`; read it before touching dev
   The UI allocates slots with `pickMacroSlot()`.
 - Lighting colors are **R,G,B**. Constant mode shows the color selected in the enable mask, not necessarily color 1.
   Write the mode record **before** the header; the LEDs only refresh on a header write.
+- Light shows stream Constant-mode writes (record + header, ~10 a second). The keyboard keeps every write, so shows are
+  time-limited and restore the saved record and header when they stop. Don't make them run indefinitely.
 - The 2.4G receiver returns reads but ignores writes. The UI is read-only on PID `0x4101`.
 - Physical layout ↔ matrix index mapping is in `LAYOUT` (`web/app.js`) and in PROTOCOL.md. Index 34 has no physical key
   and isn't shown in the UI.

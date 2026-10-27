@@ -70,6 +70,8 @@ The vendor software is copyrighted and is **not** included in this repository.
 - The LEDs only refresh when the lighting **header** is written, so write the mode record first.
 - Knob press = matrix index 2 (factory: LED mode cycle); joystick press = index 42 (factory: Enter).
 - Effect names from the app match what the pad does.
+- Input report 5 streams the switch matrix: byte row+1, bit col is set while index row*8 + col is held (keys 1 and 6
+  read as 40 and 0).
 
 ## Corrections along the way
 
@@ -81,11 +83,15 @@ The vendor software is copyrighted and is **not** included in this repository.
 ## Open questions
 
 - **Knob table 1** (factory: LED brightness −/+): exists in memory, but it's not triggered by turning while pressed. Trigger unknown.
+  Likely the Fn layer: key bank 1 looks like an Fn layer too, and no key is Fn (`0c 01`) at the factory. Untested: set a key
+  to Fn, hold it and turn the knob; the LED brightness should change.
 - **Matrix index 34** (factory: profile cycle) has no physical key. A hidden key combination might trigger it.
 - **Macro repeat modes.** The app offers "until released", "until pressed again" and "N times". Only the count (header word) is mapped.
 - **Macro delay units** are assumed to be milliseconds.
 - **Bank 1 of the key table** (indexes 160+) holds a generic full-keyboard Fn layer that this pad doesn't seem to use.
 - **Seven-color effects:** exactly how the enable mask affects each effect.
+- **Undecoded reads** (raw values in probe-reads.txt): `81` (3 bytes, middle byte drifts `de`/`df`, maybe battery),
+  `82` arg 1/5/6, `86` (20 bytes), `87` (24 bytes), `8a` arg 1/5, `f1` arg 1.
 - **Lighting header high bits** (`0x80`/`0x40` in the mode byte) are preserved but not understood.
 
 ## Files here

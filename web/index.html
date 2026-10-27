@@ -121,7 +121,7 @@ sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</pre>
             </div>
           </div>
         </div>
-        <p class="muted small">Click any key, the knob or the joystick to change what it does. Small text on a key is its printed
+        <p class="muted small">Click any key, the knob or the joystick (or press it on the pad) to change what it does. Small text on a key is its printed
           legend; the big text is what it currently sends.</p>
       </section>
 
@@ -187,6 +187,14 @@ sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</pre>
       <div class="actions"><button id="lt-apply" class="primary">Apply lighting</button></div>
     </section>
 
+    <section class="card" id="shows">
+      <h2>Light shows</h2>
+      <p class="muted small">Animations played by this page, not stored on the keyboard. Each runs for 30 seconds, then your
+        lighting comes back. Keep this tab open while one plays.</p>
+      <div class="show-list" id="show-list"></div>
+      <div class="actions"><button id="show-stop" hidden>Stop and restore lighting</button></div>
+    </section>
+
     <section class="card" id="power">
       <h2>Power saving</h2>
       <div class="light-row">
@@ -207,6 +215,7 @@ sudo udevadm control --reload-rules &amp;&amp; sudo udevadm trigger</pre>
   <script src="w909-protocol.js"></script>
   <script src="w909-keys.js"></script>
   <script src="w909-mock.js"></script>
+  <script src="w909-effects.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

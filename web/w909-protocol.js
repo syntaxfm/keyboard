@@ -9,6 +9,7 @@
 
 const W909 = (() => {
   const VID = 0xb6a4;
+  const VIDS = [VID, 0x36a4]; // the vendor app also accepts 0x36A4 (no unit with it seen yet)
   const PIDS = { 0x4100: "USB cable", 0x4101: "2.4G receiver" };
   const REPORT_ID = 6;
   const MAX_DATA = 32;
@@ -46,14 +47,14 @@ const W909 = (() => {
     }
 
     static async request(log) {
-      const filters = Object.keys(PIDS).map((pid) => ({ vendorId: VID, productId: Number(pid) }));
+      const filters = VIDS.flatMap((vendorId) => Object.keys(PIDS).map((pid) => ({ vendorId, productId: Number(pid) })));
       const picked = await navigator.hid.requestDevice({ filters });
       return Device.pick(picked, log);
     }
 
     static async reconnect(log) {
       const granted = await navigator.hid.getDevices();
-      return Device.pick(granted.filter((d) => d.vendorId === VID && PIDS[d.productId]), log);
+      return Device.pick(granted.filter((d) => VIDS.includes(d.vendorId) && PIDS[d.productId]), log);
     }
 
     static async pick(devices, log) {
@@ -66,7 +67,23 @@ const W909 = (() => {
       return new Device(hid, log);
     }
 
+    // Input report 5 (vendor page 0xFF00, 24 bytes) streams the switch matrix while keys are held:
+    // byte row+1, bit col is set for matrix index row*8 + col. Calls back with the held indexes on every report.
+    onKeys(cb) {
+      this.keyListener = (e) => {
+        if (e.reportId !== 5) return;
+        const b = new Uint8Array(e.data.buffer, e.data.byteOffset, e.data.byteLength);
+        const held = [];
+        for (let row = 0; row + 1 < b.length; row++) {
+          for (let col = 0; col < 8; col++) if (b[row + 1] & (1 << col)) held.push(row * 8 + col);
+        }
+        cb(held);
+      };
+      this.hid.addEventListener?.("inputreport", this.keyListener);
+    }
+
     async close() {
+      if (this.keyListener) this.hid.removeEventListener?.("inputreport", this.keyListener);
       if (this.hid.opened) await this.hid.close();
     }
 
@@ -236,5 +253,5 @@ const W909 = (() => {
     }
   }
 
-  return { Device, CMD, VID, PIDS };
+  return { Device, CMD, VID, VIDS, PIDS };
 })();
