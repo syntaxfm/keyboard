@@ -4,6 +4,8 @@ Transport: HID feature report ID 6 (vendor page 0xFF01), 40 data bytes, on the U
 Over the 2.4G receiver (PID 0x4101), reads work while the keyboard is in 2.4G mode, but writes are ignored. While the
 keyboard is cabled, the receiver echoes commands and returns no data. Configure over the cable.
 
+The vendor app also accepts VID 0x36A4 (same PIDs). No unit with it has been seen; the page accepts it anyway.
+
 Packet: `00 01 cmd seq arg addrLo addrHi len data[0..31]`. `cmd | 0x80` reads. Send the read with SET_FEATURE,
 then poll GET_FEATURE until bytes [2..3] echo cmd+seq; the data follows the 8-byte header. The vendor app sleeps 50 ms after writes.
 
@@ -18,6 +20,9 @@ then poll GET_FEATURE until bytes [2..3] echo cmd+seq; the data follows the 8-by
 | 09/89 | 0 | 0 | 25 | lighting header: [mode (low 6 bits, keep high bits), LED mask LE16] |
 | 09/89 | 0 | mode*25 | 25 | per-mode record, mode 1..8: [brightness 0-6, speed 0-7, direction, color-enable mask (7 bits), 7 × (R,G,B)]. Colors are R,G,B (verified red/green/blue with one color enabled). Constant shows the color selected in the mask. Write the mode record first, then the header; the LEDs only refresh on a header write |
 | f0 | 1 / 2 | 0 | 8 / 16 | firmware version / board id (ASCII) |
+
+Live key state: input report 5 (vendor page 0xFF00, 24 bytes, same interface as report 6) streams the matrix while keys
+change. Byte row+1, bit col is set while index row*8 + col is held (byte 0 unknown). Verified by pressing keys.
 
 Key matrix: index = row*8 + col. The pad uses rows 0-5 × cols 0-2, plus the joystick at 50 (left), 58 (right), 66 (down), 74 (up).
 

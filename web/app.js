@@ -109,6 +109,7 @@
     document.body.classList.remove("offline");
     $("#app").hidden = false;
     setReadOnly(dev.hid.productId === 0x4101);
+    dev.onKeys(onPadKeys);
     await busy(loadAll);
   }
 
@@ -118,14 +119,18 @@
     readOnly = on;
     $("#readonly").hidden = !on;
     document.body.classList.toggle("read-only", on);
-    $$("#ed-apply, #lt-apply, #pw-apply, #profiles button, #restore, #factory").forEach((b) => (b.disabled = on));
+    $$("#ed-apply, #lt-apply, #pw-apply, #profiles button, #restore, #factory, #shows button").forEach((b) => (b.disabled = on));
   }
   function guardWrite() {
     if (readOnly) toast("Connected through the 2.4G receiver, so settings can't be changed. Use the USB cable.", true);
     return readOnly;
   }
 
-  async function disconnect() {
+  async function disconnect(unplugged = false) {
+    if (dev && !unplugged) await stopShow();
+    show = null;
+    renderShows();
+    held = new Set();
     if (dev) await dev.close();
     dev = null;
     $("#status").textContent = "Not connected";
@@ -147,7 +152,7 @@
   }
 
   navigator.hid?.addEventListener("disconnect", (e) => {
-    if (dev && e.device === dev.hid) { disconnect(); toast("Keyboard disconnected", true); }
+    if (dev && e.device === dev.hid) { disconnect(true); toast("Keyboard disconnected", true); }
   });
 
   // ---------- loading ----------
@@ -226,6 +231,19 @@
       const [layer, slot] = el.dataset.knob.split(":").map(Number);
       renderSlot(el, knobValue(layer, slot));
     });
+  }
+
+  // ---------- pressing a key on the pad ----------
+  // The pad streams its switch matrix, so pressing a physical key selects it here.
+  let held = new Set();
+  function onPadKeys(indexes) {
+    const fresh = indexes.filter((i) => !held.has(i));
+    held = new Set(indexes);
+    $$(".slot[data-key]").forEach((el) => el.classList.toggle("pressed", held.has(Number(el.dataset.key))));
+    // Leave the editor alone while someone is typing into it or capturing a key (pad keys type too).
+    const typing = document.activeElement?.matches("input, textarea") || $(".listening");
+    if (fresh.length !== 1 || typing || !state || document.body.classList.contains("busy")) return;
+    if ($(`.slot[data-key="${fresh[0]}"]`)) openEditor({ kind: "key", index: fresh[0] });
   }
 
   // ---------- key editor ----------
@@ -408,6 +426,7 @@
 
   async function applyLighting() {
     if (guardWrite()) return;
+    await stopShow();
     const mode = Number($("#lt-mode").value);
     const h = state.light.header;
     const header = [(h[0] & 0xc0) | mode, h[1], h[2]];
@@ -437,6 +456,66 @@
       renderLighting();
       toast("Lighting saved");
     });
+  }
+
+  // ---------- light shows ----------
+  // The page animates the pad by rewriting Constant mode's color, then the header (the LEDs only refresh on a
+  // header write). Every write is saved by the keyboard, so shows stop on their own and then put the lighting back.
+  const SHOW_SECONDS = 30;
+  let show = null; // { index, started, saved: { header, constant } }
+
+  function renderShows() {
+    $$("#shows button[data-show]").forEach((b) => b.classList.toggle("on", show?.index === Number(b.dataset.show)));
+    $("#show-stop").hidden = !show;
+  }
+
+  function startShow(index) {
+    if (guardWrite() || !state?.light) return;
+    const first = !show;
+    show = { index, started: performance.now(), saved: show?.saved || { header: Uint8Array.from(state.light.header), constant: Uint8Array.from(lightRecord(CONSTANT)) } };
+    renderShows();
+    if (first) showFrame();
+  }
+
+  async function showFrame() {
+    if (!show) return;
+    const t = (performance.now() - show.started) / 1000;
+    if (t > SHOW_SECONDS) return stopShow();
+    const { header, constant } = show.saved;
+    const rec = Uint8Array.from(constant);
+    if (!rec[0]) rec[0] = 4; // brightness 0 would hide the show
+    rec[3] = 0x01; // Constant shows the color selected in the mask
+    rec.set(W909Effects.color(W909Effects.LIST[show.index], t), 4);
+    try {
+      // Queue both writes at once so a Stop can't land between them.
+      await Promise.all([dev.writeLightingMode(CONSTANT, rec), dev.writeLightingHeader([(header[0] & 0xc0) | CONSTANT, header[1], header[2]])]);
+    } catch (e) {
+      console.error(e);
+      show = null;
+      renderShows();
+      return;
+    }
+    setTimeout(showFrame, 0); // each frame is two writes of ~50 ms, about 10 frames a second
+  }
+
+  async function stopShow() {
+    if (!show) return;
+    const { saved } = show;
+    show = null;
+    renderShows();
+    await dev.writeLightingMode(CONSTANT, saved.constant);
+    await dev.writeLightingHeader(saved.header);
+  }
+
+  function buildShows() {
+    $("#show-list").innerHTML = W909Effects.LIST.map((e, i) =>
+      `<button data-show="${i}"><i class="swatch"></i><b>${e.name}</b><small>${e.about}</small></button>`).join("");
+    const swatches = $$("#show-list .swatch");
+    const preview = (now) => {
+      W909Effects.LIST.forEach((e, i) => (swatches[i].style.background = `rgb(${W909Effects.color(e, now / 1000)})`));
+      requestAnimationFrame(preview);
+    };
+    requestAnimationFrame(preview);
   }
 
   // ---------- backup / restore / factory reset (active profile) ----------
@@ -473,6 +552,7 @@
 
   // Writes a complete profile: macros first (so macro keys point at real data), then keys, knob, lighting, sleep.
   async function writeProfile(p) {
+    await stopShow();
     for (let slot = 0; slot < MACRO_SLOTS; slot++) {
       const m = p.macros[slot];
       await dev.writeMacro(slot, m ? m.repeat : 0, m ? m.events : new Uint8Array(0));
@@ -544,10 +624,11 @@
     buildBoard();
     showOffline();
     fillSelects();
+    buildShows();
     $("#lt-mode").innerHTML = LIGHT_MODES.map((n, i) => `<option value="${i + 1}">${n}</option>`).join("");
 
     $("#connect").addEventListener("click", () => (dev ? disconnect() : connect()));
-    $("#reload").addEventListener("click", () => busy(loadAll));
+    $("#reload").addEventListener("click", () => busy(async () => { await stopShow(); await loadAll(); }));
     $("#backup").addEventListener("click", backup);
     $("#restore").addEventListener("click", () => !guardWrite() && $("#restore-file").click());
     $("#restore-file").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) restoreFile(f); });
@@ -556,7 +637,7 @@
     $("#profiles").addEventListener("click", (e) => {
       const p = e.target.dataset.profile;
       if (p === undefined || !state || Number(p) === state.profile || guardWrite()) return;
-      busy(async () => { await dev.setProfile(Number(p)); await loadAll(); toast(`Switched to Profile ${Number(p) + 1}`); });
+      busy(async () => { await stopShow(); await dev.setProfile(Number(p)); await loadAll(); toast(`Switched to Profile ${Number(p) + 1}`); });
     });
     document.querySelector(".pad-wrap").addEventListener("click", (e) => {
       const s = e.target.closest(".slot");
@@ -579,6 +660,13 @@
     $("#lt-bright").addEventListener("input", (e) => ($("#lt-bright-v").textContent = e.target.value));
     $("#lt-speed").addEventListener("input", (e) => ($("#lt-speed-v").textContent = e.target.value));
     $("#lt-apply").addEventListener("click", applyLighting);
+    $("#show-list").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-show]");
+      if (b && dev && state) startShow(Number(b.dataset.show));
+    });
+    $("#show-stop").addEventListener("click", () => busy(stopShow));
+    // Best effort: put the lighting back if the tab closes mid-show.
+    window.addEventListener("pagehide", () => { if (show && dev) stopShow(); });
     $("#pw-apply").addEventListener("click", () => !guardWrite() && busy(async () => {
       const min = Math.min(120, Math.max(1, Number($("#pw-sleep").value) || 1));
       await dev.setSleepSeconds(min * 60);

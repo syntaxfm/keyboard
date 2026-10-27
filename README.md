@@ -21,6 +21,9 @@ Remap everything right from a web page, with no app to download.
   - Win/Mac mode and key locks
 - **Two profiles,** each with its own keys, macros and lighting.
 - **Lighting:** 8 effects plus off, with brightness, speed, direction and up to 7 colors.
+- **Light shows:** animations played from the page (pulse, heartbeat, candle, police, strobe…) for 30 seconds,
+  then your lighting comes back.
+- **Press a key on the pad to select it** in the editor.
 - **Power saving:** a sleep timer.
 - **Backup, restore and factory reset** of a profile, using JSON files.
 - Changes are written straight to the keyboard and survive unplugging.
@@ -74,6 +77,7 @@ web/                 the configurator (plain HTML/CSS/JS, no build step)
   w909-protocol.js                WebHID transport + commands
   w909-keys.js                    key/action tables, macro encoding, factory defaults
   w909-mock.js                    in-memory keyboard for ?demo
+  w909-effects.js                 light show animations
 device-info/         everything we learned: sources, findings, protocol reference, raw dumps
 tools/               macOS command-line probe (Swift) and a protocol test harness
 ```
