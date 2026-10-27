@@ -1,6 +1,7 @@
 // 3D model of the Syntax W909 used as the key picker, drawn with three.js (web/vendor/three.min.js).
 // It takes over the 2D board: the key buttons app.js builds become floating labels, and clicking a cap clicks its
-// button, so selection and editing stay in app.js. Without WebGL the 2D board stays.
+// button, so selection and editing stay in app.js. Without WebGL the 2D board stays. unmount() puts the 2D board
+// back exactly as it was and frees everything 3D (the page's "3D view" toggle uses it).
 //
 // Units are millimetres. X = right, Y = up, Z = toward the user. Sizes are estimated from photos of the pad.
 
@@ -428,7 +429,10 @@ const W909Board3D = (() => {
 
   // wrap: element holding the 2D #board. glow(t, x) returns the LED color [r, g, b] (0..255) at time t (s) for a
   // key at x (0 = left edge, 1 = right edge), or null when the LEDs are off.
+  let destroy = null;
+
   function mount(wrap, { glow } = {}) {
+    if (destroy) return true;
     if (!window.THREE || !webglOK()) return false;
     THREE.ColorManagement.legacyMode = false;
 
@@ -452,6 +456,7 @@ const W909Board3D = (() => {
     wrap.classList.add("three-d");
 
     const slots = Array.from(wrap.querySelectorAll("#board .slot[data-key]"));
+    const homes = slots.map((s) => [s, s.parentNode, s.nextSibling]); // to put them back on unmount
     slots.forEach((s) => (s.dataset.row = s.closest(".tray")?.id || ""));
     slots.forEach((s) => labels.append(s));
 
@@ -498,7 +503,8 @@ const W909Board3D = (() => {
       dist = Math.max(225 / 2 / (tan * camera.aspect), 150 / 2 / tan);
       camera.updateProjectionMatrix();
     }
-    new ResizeObserver(resize).observe(box);
+    const sizer = new ResizeObserver(resize);
+    sizer.observe(box);
     resize();
 
     // ---- pointer: drag to orbit, click to pick ----
@@ -552,8 +558,9 @@ const W909Board3D = (() => {
     const joyEls = Object.fromEntries([50, 58, 66, 74].map((i) => [i, document.querySelector(`.slot[data-key="${i}"]`)]));
     const held = (i) => joyEls[i]?.classList.contains("pressed");
 
+    let raf = 0;
     function frame(now) {
-      requestAnimationFrame(frame);
+      raf = requestAnimationFrame(frame);
       if (!box.clientWidth) return;
       const t = now / 1000;
       const idle = !calm && lastTouch !== Infinity && now - lastTouch > 4000 ? 1 : 0;
@@ -617,16 +624,47 @@ const W909Board3D = (() => {
 
       renderer.render(scene, camera);
     }
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
     // For screenshots: data-view="yaw,pitch,zoom" on the board poses the camera and stops the idle sway.
-    new MutationObserver(() => {
+    const viewer = new MutationObserver(() => {
       const [yaw, pitch, zoom = 1] = (box.dataset.view || "").split(",").map(Number);
       if (Number.isNaN(yaw) || Number.isNaN(pitch)) return;
       Object.assign(aim, { yaw, pitch }); Object.assign(view, { yaw, pitch });
       lastTouch = Infinity; zoomBy = zoom;
-    }).observe(box, { attributes: true, attributeFilter: ["data-view"] });
+    });
+    viewer.observe(box, { attributes: true, attributeFilter: ["data-view"] });
+
+    destroy = () => {
+      cancelAnimationFrame(raf);
+      sizer.disconnect();
+      viewer.disconnect();
+      for (const [s, parent, next] of homes.reverse()) { // last first, so each one's next sibling is already back
+        parent.insertBefore(s, next);
+        s.style.removeProperty("transform");
+        if (!s.getAttribute("style")) s.removeAttribute("style");
+        delete s.dataset.row;
+      }
+      scene.traverse((o) => {
+        o.geometry?.dispose();
+        for (const m of [].concat(o.material || [])) {
+          for (const v of Object.values(m)) if (v?.isTexture) v.dispose();
+          m.dispose();
+        }
+      });
+      scene.environment.dispose();
+      key.shadow.map?.dispose();
+      renderer.dispose();
+      renderer.forceContextLoss();
+      box.remove();
+      wrap.classList.remove("three-d");
+    };
     return true;
   }
 
-  return { mount };
+  function unmount() {
+    destroy?.();
+    destroy = null;
+  }
+
+  return { mount, unmount };
 })();

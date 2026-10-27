@@ -504,6 +504,41 @@
     return scale(c, k * (0.15 + 0.85 * (0.5 - 0.5 * Math.cos(p * 2 * Math.PI)))); // breathing
   }
 
+  // ---------- 3D view ----------
+  // three.js and the 3D board load only while the "3D view" toggle is on (the default). Off, the page is the flat
+  // 2D board with nothing 3D on it. Without WebGL the toggle is hidden and the 2D board stays.
+  const VIEW_KEY = "w909-3d";
+  const scripts = {};
+  const loadScript = (src) => (scripts[src] ??= new Promise((ok, fail) => {
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = ok;
+    s.onerror = () => { delete scripts[src]; s.remove(); fail(new Error(`Couldn't load ${src}`)); };
+    document.body.append(s);
+  }));
+  const load3D = async () => { await loadScript("vendor/three.min.js"); await loadScript("w909-board3d.js"); };
+
+  async function set3D(on) {
+    const box = $("#view-3d");
+    box.checked = on;
+    localStorage.setItem(VIEW_KEY, on ? "1" : "0");
+    try {
+      if (!on) return typeof W909Board3D !== "undefined" && W909Board3D.unmount();
+      await load3D();
+      if (box.checked && !W909Board3D.mount($(".board-wrap"), { glow: padGlow })) $(".view-toggle").hidden = true;
+    } catch (e) { console.error("3D board failed", e); }
+  }
+
+  function init3D() {
+    let gl = null;
+    try { gl = document.createElement("canvas").getContext("webgl2"); } catch {}
+    if (!gl) return;
+    gl.getExtension("WEBGL_lose_context")?.loseContext(); // only a probe; free it
+    $(".view-toggle").hidden = false;
+    $("#view-3d").addEventListener("change", (e) => set3D(e.target.checked));
+    set3D(localStorage.getItem(VIEW_KEY) !== "0");
+  }
+
   // ---------- light shows ----------
   // The page animates the pad by rewriting Constant mode's color, then the header (the LEDs only refresh on a
   // header write). Every write is saved by the keyboard, so shows stop on their own and then put the lighting back.
@@ -668,9 +703,7 @@
     }
     initHelp();
     buildBoard();
-    // 3D board when WebGL is available; otherwise the 2D board stays.
-    try { if (typeof W909Board3D !== "undefined") W909Board3D.mount($(".board-wrap"), { glow: padGlow }); }
-    catch (e) { console.error("3D board failed", e); }
+    init3D();
     showOffline();
     fillSelects();
     buildShows();

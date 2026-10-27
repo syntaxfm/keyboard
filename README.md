@@ -25,7 +25,7 @@ Remap everything right from a web page, with no app to download.
   then your lighting comes back.
 - **Press a key on the pad to select it** in the editor.
 - **3D model of the pad** you can turn around. Click a keycap to edit it; held keys sink, the joystick tilts, and the
-  switches glow with the current lighting.
+  switches glow with the current lighting. Untick **3D view** for the flat board; the choice is remembered.
 - **Power saving:** a sleep timer.
 - **Backup, restore and factory reset** of a profile, using JSON files.
 - Changes are written straight to the keyboard and survive unplugging.
