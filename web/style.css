@@ -15,8 +15,8 @@ body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-even
 header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 24px;
   border-bottom: 2px solid var(--yellow); background: linear-gradient(180deg, #111 0%, #000 100%); }
 h1 { font-size: 18px; margin: 0; }
-h1.brand { display: flex; align-items: center; gap: 4px; }
-h1.brand img { height: 64px; width: auto; margin: -6px 0 -6px -14px; }
+h1.brand { display: flex; align-items: center; gap: 14px; }
+h1.brand img { height: 34px; width: auto; }
 h1.brand span { font: 800 15px/1.05 var(--mono); text-transform: uppercase; letter-spacing: .04em; color: var(--text); }
 h2 { font: 800 13px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--yellow); margin: 0 0 12px; }
 button, select, input, textarea { font: inherit; color: inherit; background: #262626; border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; }
@@ -175,4 +175,4 @@ input[type=checkbox] { accent-color: var(--yellow); }
 .board3d .slot { font-family: var(--mono); border-radius: 4px; }
 .board3d .slot span { font-weight: 700; }
 #status { color: var(--muted); }
-@media (max-width: 600px) { h1.brand img { height: 48px; } h1.brand span { font-size: 12px; } }
+@media (max-width: 600px) { h1.brand img { height: 26px; } h1.brand span { font-size: 12px; } }
