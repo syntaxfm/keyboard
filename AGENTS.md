@@ -14,7 +14,9 @@ The protocol reference is `device-info/PROTOCOL.md`; read it before touching dev
   `W909Board3D`); `app.js` is an IIFE.
 - The 3D board (`w909-board3d.js`) takes over the 2D `#board`: the key buttons from `buildBoard()` become floating labels
   and clicking a cap clicks its button, so selection stays in `app.js`. It reads `selected`/`pressed` classes each frame.
-  Without WebGL the 2D board stays, so keep both working.
+  Without WebGL the 2D board stays, so keep both working. To screenshot fixed angles, set `data-view="yaw,pitch,zoom"`
+  on `.board3d` (e.g. `-1.45,0.12,1.5` is the left side, `3.14,0.15,1.4` the back) and compare against photos of the pad.
+  The Syntax wordmark on the front is `web/syntax-wordmark.svg` (from syntaxfm.github.io/brand).
 - `tools/`: Swift probes (`w909.swift`, `w909-bridge.swift`) and `test-protocol.mjs`, which runs the real web protocol code under Node against the keyboard.
 - `device-info/`: the single home for what we know about the device (sources with links, findings, protocol, raw dumps).
   Record new findings there.

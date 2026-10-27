@@ -6,27 +6,30 @@
 
 const W909Board3D = (() => {
   const U = 19.05;
-  const W = 166, D = 130;                   // case footprint
-  const M = 7, PAD = 3.2, GAP = 4.5;        // case margin, tray padding, ridge between trays
-  const Y_FLOOR = 16, Y_TOP = 22;           // switch plate (tray floor), top surface
-  const Y_BODY = 7, Y_FRONT = 11, Y_FEET = 1.2; // upper shell bottom, front lip height, rubber feet
-  const STEM = 5.4, CAP_H = 8.6, TRAVEL = 3.6;
+  const W = 166, D = 124;                   // case footprint
+  const M = 7, PAD = 1.9, GAP = 5;          // case margin, tray padding, ridge between trays
+  const DEPTH = 6;                          // tray depth below its tier
+  const Y_BODY = 7, Y_FRONT = 8.6, Y_FEET = 1.2; // upper shell bottom, front lip height, rubber feet
+  const STEM = 5.2, CAP_H = 8.8, TRAVEL = 3.6;
   const TRAY_D = U + 2 * PAD;
   const trayW = (u) => u * U + 2 * PAD;
   const Z_A = -D / 2 + M, Z_B = Z_A + TRAY_D + GAP, Z_C = Z_B + TRAY_D + GAP; // tray back edges
-  const Z_SLOPE = Z_C + TRAY_D + 4;
+  const Z_SLOPE = Z_C + TRAY_D + 3.5;
   const RIGHT = W / 2 - M;
+  // The top steps down row by row, like the real case.
   const TRAYS = {
-    "row-a": { x: RIGHT - trayW(6), z: Z_A, u: 6, tilt: 0.12 },
-    "row-b": { x: RIGHT - trayW(7), z: Z_B, u: 7, tilt: 0.06 },
-    "row-c": { x: RIGHT - trayW(7), z: Z_C, u: 5.25, tilt: 0 },
+    "row-a": { x: RIGHT - trayW(6), z: Z_A, u: 6, top: 24.5, tilt: 0.11 },
+    "row-b": { x: RIGHT - trayW(7), z: Z_B, u: 7, top: 22, tilt: 0.05 },
+    "row-c": { x: RIGHT - trayW(7), z: Z_C, u: 5.25, top: 19.5, tilt: -0.02 },
   };
-  const KNOB = { x: (-W / 2 + M + TRAYS["row-a"].x) / 2, z: Z_A + TRAY_D / 2, r: 13.6 };
-  const JOY = { x: (TRAYS["row-c"].x + trayW(5.25) + RIGHT) / 2, z: Z_C + TRAY_D / 2, r: 12 };
-  const slopeY = (z) => Y_TOP - ((z - Z_SLOPE) * (Y_TOP - Y_FRONT)) / (D / 2 - Z_SLOPE);
+  for (const t of Object.values(TRAYS)) t.floor = t.top - DEPTH;
+  const TA = TRAYS["row-a"], TC = TRAYS["row-c"];
+  const KNOB = { x: (-W / 2 + M + TA.x) / 2, z: Z_A + TRAY_D / 2, r: 13.4 };
+  const JOY = { x: (TC.x + trayW(5.25) + RIGHT) / 2, z: Z_C + TRAY_D / 2, r: 11 };
+  const slopeY = (z) => TC.top - ((z - Z_SLOPE) * (TC.top - Y_FRONT)) / (D / 2 - Z_SLOPE);
 
-  const COLORS = { orange: "#e07c12", dark: "#27282b", light: "#8e8f92", case: "#232326", plate: "#0c0c0d", logo: "#eb9c00" };
-  const INK = { orange: "#5a4431", dark: "#f3f3f3", light: "#ffffff" };
+  const COLORS = { orange: "#e07c12", dark: "#252629", light: "#8c8d90", case: "#222224", plate: "#0b0b0c", logo: "#e9a10f" };
+  const INK = { orange: "#4f3c2c", dark: "#f3f3f3", light: "#ffffff" };
   const ACCENT = "#6c8cff";
 
   // ---------- geometry helpers ----------
@@ -41,7 +44,7 @@ const W909Board3D = (() => {
   // Plan shapes are drawn in (x, -z) so that after rotateX(-90°) the extrusion points up.
   const planRect = (x0, z0, x1, z1, r, Kind = THREE.Shape) => roundedRect(new Kind(), x0, -z1, x1 - x0, z1 - z0, r);
 
-  // Rounded-rect with different radii at the back (far) and front (near) corners, in plan coordinates.
+  // Rounded rect with different radii at the back (far) and front (near) corners, in plan coordinates.
   function planRect2(x0, z0, x1, z1, rBack, rFront) {
     const s = new THREE.Shape();
     const y0 = -z1, y1 = -z0; // y0 = front, y1 = back
@@ -72,8 +75,7 @@ const W909Board3D = (() => {
     const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
     for (let i = 0; i < n; i += 3) {
       a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
-      const nrm = new THREE.Vector3().crossVectors(b.sub(a), c.sub(a));
-      face.push(nrm);
+      face.push(new THREE.Vector3().crossVectors(b.sub(a), c.sub(a)));
     }
     const key = (i) => `${Math.round(pos.getX(i) * 100)},${Math.round(pos.getY(i) * 100)},${Math.round(pos.getZ(i) * 100)}`;
     const byPos = new Map();
@@ -98,6 +100,69 @@ const W909Board3D = (() => {
     return geo;
   }
 
+  // Cherry-style keycap built ring by ring: tapered sides, a rounded top edge and a cylindrical dish.
+  // Group 0 is the top (carries the legend), group 1 the sides.
+  const CAP = { F: 1.7, DISH: 0.6, inX: 2.8, inZ: 2.5, back: 0.7 };
+  function capGeometry(w, d) {
+    const S = 6, E = 8; // points per corner arc, points per straight edge
+    const hw1 = w / 2 - CAP.inX, hd1 = d / 2 - CAP.inZ; // where the sides meet the rounded top edge
+    function ring(hw, hd, r) {
+      r = Math.max(0.05, Math.min(r, hw - 0.01, hd - 0.01));
+      const cs = [[hw - r, hd - r], [-(hw - r), hd - r], [-(hw - r), -(hd - r)], [hw - r, -(hd - r)]];
+      const pts = [];
+      for (let c = 0; c < 4; c++) {
+        for (let s = 0; s <= S; s++) {
+          const a = (c + s / S) * (Math.PI / 2);
+          pts.push([cs[c][0] + r * Math.cos(a), cs[c][1] + r * Math.sin(a)]);
+        }
+        const [ax, az] = pts[pts.length - 1];
+        const nc = cs[(c + 1) % 4], a1 = ((c + 1) % 4) * (Math.PI / 2);
+        const bx = nc[0] + r * Math.cos(a1), bz = nc[1] + r * Math.sin(a1);
+        for (let e = 1; e <= E; e++) pts.push([ax + ((bx - ax) * e) / (E + 1), az + ((bz - az) * e) / (E + 1)]);
+      }
+      return pts;
+    }
+    const rings = []; // [points, y, dish weight, isTop]
+    for (let i = 0; i <= 5; i++) {
+      const t = i / 5;
+      rings.push([ring(w / 2 + (hw1 - w / 2) * t, d / 2 + (hd1 - d / 2) * t, 1.2 + 1.6 * t), t * (CAP_H - CAP.F), 0, false, t]);
+    }
+    for (let j = 1; j <= 6; j++) {
+      const th = (j / 6) * (Math.PI / 2), inset = CAP.F * (1 - Math.cos(th));
+      rings.push([ring(hw1 - inset, hd1 - inset, 2.8 - inset), CAP_H - CAP.F + CAP.F * Math.sin(th), Math.sin(th), false, 1]);
+    }
+    for (let k = 1; k <= 6; k++) {
+      const s = Math.max(0.002, 1 - k / 6);
+      rings.push([ring((hw1 - CAP.F) * s, (hd1 - CAP.F) * s, (2.8 - CAP.F) * s), CAP_H, 1, true, 1]);
+    }
+    const M = rings[0][0].length;
+    const pos = [], uv = [];
+    const hwT = hw1 - CAP.F, hdT = hd1 - CAP.F; // flat top, which the legend spans
+    for (const [pts, y, dish, , t] of rings) {
+      for (const [x, z] of pts) {
+        const q = Math.min(1, (x / hw1) ** 2);
+        pos.push(x, y - CAP.DISH * (1 - q) * dish, z - CAP.back * t);
+        uv.push(x / (2 * hwT) + 0.5, -z / (2 * hdT) + 0.5);
+      }
+    }
+    const side = [], top = [];
+    for (let r = 0; r < rings.length - 1; r++) {
+      const out = rings[r + 1][3] ? top : side;
+      for (let p = 0; p < M; p++) {
+        const a = r * M + p, b = r * M + ((p + 1) % M), c = (r + 1) * M + p, e = (r + 1) * M + ((p + 1) % M);
+        out.push(a, c, b, b, c, e);
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex([...top, ...side]);
+    geo.addGroup(0, top.length, 0);
+    geo.addGroup(top.length, side.length, 1);
+    geo.computeVertexNormals();
+    return { geo, topW: 2 * hwT, topD: 2 * hdT };
+  }
+
   // ---------- textures ----------
   function canvas(w, h) {
     const c = document.createElement("canvas");
@@ -105,7 +170,7 @@ const W909Board3D = (() => {
     return [c, c.getContext("2d")];
   }
 
-  // Fine stipple for the textured plastic.
+  // Fine grain for the textured plastic.
   function noiseTexture(size = 256, soft = 1) {
     const [c, g] = canvas(size, size);
     const img = g.createImageData(size, size);
@@ -130,53 +195,61 @@ const W909Board3D = (() => {
 
   const LEGEND_FONT = '"Avenir Next", "Avenir", "Helvetica Neue", Arial, sans-serif';
   function legendTexture(text, color, wMM, dMM, renderer) {
-    const ppm = 28; // pixels per millimetre
+    const ppm = 40; // pixels per millimetre
     const [c, g] = canvas(Math.round(wMM * ppm), Math.round(dMM * ppm));
     g.fillStyle = COLORS[color]; g.fillRect(0, 0, c.width, c.height);
     if (text) {
       const long = text.length > 2;
       g.fillStyle = INK[color];
-      g.font = `${long ? 600 : 500} ${Math.round((long ? 3.6 : 8.2) * ppm)}px ${LEGEND_FONT}`;
-      if (long) g.letterSpacing = `${Math.round(0.5 * ppm)}px`;
-      g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText(text === "•" ? "·" : text, c.width / 2 + (long ? 0.25 * ppm : 0), c.height / 2 + 0.3 * ppm);
+      if (text === "−") { // the minus key has a short, thick bar
+        g.fillRect(c.width / 2 - 1.6 * ppm, c.height / 2 - 0.45 * ppm, 3.2 * ppm, 0.9 * ppm);
+      } else {
+        g.font = `600 ${Math.round((long ? 2.9 : 7.6) * ppm)}px ${LEGEND_FONT}`;
+        if (long) g.letterSpacing = `${Math.round(0.35 * ppm)}px`;
+        g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText(text === "•" ? "·" : text, c.width / 2 + (long ? 0.17 * ppm : 0), c.height / 2 + 0.35 * ppm);
+      }
     }
     const t = new THREE.CanvasTexture(c);
     t.encoding = THREE.sRGBEncoding;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    // Cap UVs are the shape's own coordinates in mm, centred on 0.
-    t.repeat.set(1 / wMM, 1 / dMM);
-    t.offset.set(0.5, 0.5);
     return t;
   }
 
+  // The Syntax wordmark (syntax-wordmark.svg, 2664 × 777) drawn into a texture once it loads.
+  const LOGO_ASPECT = 2664 / 777;
   function logoTexture(renderer) {
-    const [c, g] = canvas(2048, 512);
-    g.fillStyle = COLORS.logo;
-    g.font = `800 380px ${LEGEND_FONT}`;
-    g.letterSpacing = "-14px";
-    g.textBaseline = "middle";
-    g.fillText("Syntax.", 20, 270);
+    const [c, g] = canvas(2048, Math.round(2048 / LOGO_ASPECT));
     const t = new THREE.CanvasTexture(c);
     t.encoding = THREE.sRGBEncoding;
     t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    const img = new Image();
+    img.onload = () => {
+      g.drawImage(img, 0, 0, c.width, c.height);
+      // Recolor to the deeper yellow the pad is printed with (the lighting lifts the brand #FABF46 too far).
+      g.globalCompositeOperation = "source-in";
+      g.fillStyle = COLORS.logo;
+      g.fillRect(0, 0, c.width, c.height);
+      t.needsUpdate = true;
+    };
+    img.src = "syntax-wordmark.svg";
     return t;
   }
 
   // A small studio (softboxes in a dark room) for reflections.
   function studio(renderer) {
     const env = new THREE.Scene();
-    env.add(new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10), new THREE.MeshBasicMaterial({ color: 0x15161a, side: THREE.BackSide })));
-    const panel = (w, h, pos, intensity, color = 0xffffff) => {
+    env.add(new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10), new THREE.MeshBasicMaterial({ color: 0x121317, side: THREE.BackSide })));
+    const panel = (w, h, pos, intensity) => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), side: THREE.DoubleSide }));
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffffff).multiplyScalar(intensity), side: THREE.DoubleSide }));
       m.position.set(...pos); m.lookAt(0, 0, 0); env.add(m);
     };
-    panel(5, 2.6, [0, 4.8, 1.2], 2.6);              // overhead softbox
-    panel(1.4, 4, [-4.8, 1.8, 1.5], 1.6);          // left strip
-    panel(1.4, 4, [4.8, 1.4, -1.5], 1.1, 0xffe2bd); // warm right strip
-    panel(5, 0.8, [0, 1.2, -4.8], 1.2);            // back rim
-    panel(3, 1.2, [0, 0.6, 4.8], 0.3);             // weak fill from the front
+    panel(5, 2.6, [0, 4.8, 1.2], 2.6);  // overhead softbox
+    panel(1.4, 4, [-4.8, 1.8, 1.5], 1.6); // left strip
+    panel(1.4, 4, [4.8, 1.4, -1.5], 1.0); // right strip
+    panel(5, 0.8, [0, 1.2, -4.8], 1.2);  // back rim
+    panel(3, 1.2, [0, 0.6, 4.8], 0.35);  // weak fill from the front
     const pm = new THREE.PMREMGenerator(renderer);
     const tex = pm.fromScene(env, 0.03).texture;
     pm.dispose();
@@ -185,9 +258,9 @@ const W909Board3D = (() => {
 
   // ---------- the model ----------
   function build(scene, renderer, slots) {
-    const stipple = noiseTexture(256, 0.6);
-    stipple.repeat.set(1 / 22, 1 / 22);
-    const caseMat = new THREE.MeshStandardMaterial({ color: COLORS.case, roughness: 0.78, metalness: 0, bumpMap: stipple, bumpScale: 0.25 });
+    const grain = noiseTexture(256, 0.5);
+    grain.repeat.set(1 / 11, 1 / 11);
+    const caseMat = new THREE.MeshStandardMaterial({ color: COLORS.case, roughness: 0.74, metalness: 0, bumpMap: grain, bumpScale: 0.07 });
     const plateMat = new THREE.MeshStandardMaterial({ color: COLORS.plate, roughness: 0.9 });
     const add = (geo, mat, { cast = true, receive = true } = {}) => {
       const m = new THREE.Mesh(geo, mat);
@@ -195,55 +268,66 @@ const W909Board3D = (() => {
       scene.add(m);
       return m;
     };
+    const BEVEL = 2;
+    const trayHole = (t) => planRect(t.x, t.z, t.x + trayW(t.u), t.z + TRAY_D, 2.6, THREE.Path);
 
-    // Upper shell, back part: flat top with the trays and joystick recess cut out.
-    const top = planRect2(-W / 2, -D / 2, W / 2, Z_SLOPE, 9, 0);
-    for (const t of Object.values(TRAYS)) top.holes.push(planRect(t.x, t.z, t.x + trayW(t.u), t.z + TRAY_D, 3.4, THREE.Path));
+    // Upper shell: three tiers stepping down toward the user, each with its tray cut out.
+    const jAB = Z_A + TRAY_D + GAP / 2, jBC = Z_B + TRAY_D + GAP / 2;
+    const tierA = planRect2(-W / 2, -D / 2, W / 2, jAB, 10, 0);
+    tierA.holes.push(trayHole(TA));
+    add(smooth(extrudeUp(tierA, Y_BODY, TA.top, BEVEL, 5, 16)), caseMat);
+    const tierB = planRect2(-W / 2, jAB, W / 2, jBC, 0, 0);
+    tierB.holes.push(trayHole(TRAYS["row-b"]));
+    add(smooth(extrudeUp(tierB, Y_BODY, TRAYS["row-b"].top, BEVEL, 5, 16)), caseMat);
+    const tierC = planRect2(-W / 2, jBC, W / 2, Z_SLOPE, 0, 0);
+    tierC.holes.push(trayHole(TC));
     const joyHole = new THREE.Path();
     joyHole.absarc(JOY.x, -JOY.z, JOY.r, 0, Math.PI * 2, true);
-    top.holes.push(joyHole);
-    add(smooth(extrudeUp(top, Y_BODY, Y_TOP, 1.3, 4, 14)), caseMat);
+    tierC.holes.push(joyHole);
+    add(smooth(extrudeUp(tierC, Y_BODY, TC.top, BEVEL, 5, 16)), caseMat);
 
-    // Upper shell, front lip: same outline, top squashed onto the slope.
-    const lipGeo = extrudeUp(planRect2(-W / 2, Z_SLOPE - 0.01, W / 2, D / 2, 0, 9), Y_BODY, Y_TOP, 1.3, 4, 14);
+    // Front lip: the same outline squashed onto a slope that ends in a thin edge.
+    const lipGeo = extrudeUp(planRect2(-W / 2, Z_SLOPE - 0.01, W / 2, D / 2, 0, 10), Y_BODY, TC.top, BEVEL, 5, 16);
     const lp = lipGeo.attributes.position;
     for (let i = 0; i < lp.count; i++) {
       const y = lp.getY(i), z = lp.getZ(i);
-      lp.setY(i, Y_BODY + ((y - Y_BODY) * (slopeY(z) - Y_BODY)) / (Y_TOP - Y_BODY));
+      lp.setY(i, Y_BODY + ((y - Y_BODY) * (slopeY(z) - Y_BODY)) / (TC.top - Y_BODY));
     }
     add(smooth(lipGeo), caseMat);
 
+    // A band just inside the tiers fills the notches their rounded bottom edges leave where they meet.
+    add(extrudeUp(planRect2(-W / 2 + 0.08, -D / 2 + 0.08, W / 2 - 0.08, D / 2 - 3.5, 9.9, 0), Y_BODY + 0.3, Y_BODY + 2.6, 0), caseMat, { cast: false });
+
     // Lower shell, inset a little and stopping short of the overhanging front lip.
-    add(smooth(extrudeUp(planRect2(-W / 2 + 1.6, -D / 2 + 1.6, W / 2 - 1.6, D / 2 - 10, 7.5, 5), Y_FEET, Y_BODY + 1, 1.2)), caseMat);
-    // Rubber feet
+    add(smooth(extrudeUp(planRect2(-W / 2 + 1.6, -D / 2 + 1.6, W / 2 - 1.6, D / 2 - 16, 8.5, 5), Y_FEET, Y_BODY + 1, 1.4)), caseMat);
     const footMat = new THREE.MeshStandardMaterial({ color: "#0b0b0b", roughness: 0.95 });
     for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const f = add(new THREE.CylinderGeometry(5, 5, Y_FEET + 0.2, 24), footMat, { receive: false });
-      f.position.set(x * (W / 2 - 14), (Y_FEET + 0.2) / 2, z * (D / 2 - 20) - (z > 0 ? 6 : 0));
+      f.position.set(x * (W / 2 - 14), (Y_FEET + 0.2) / 2, z > 0 ? D / 2 - 26 : -D / 2 + 14);
     }
     // USB-C port on the back
     const port = add(smooth(extrudeUp(planRect(-4.6, -1.6, 4.6, 1.6, 1.5), 0, 2, 0.3)), new THREE.MeshStandardMaterial({ color: "#050505", roughness: 0.4, metalness: 0.6 }), { cast: false });
     port.rotation.x = Math.PI / 2;
     port.position.set(-18, 4.6, -D / 2 + 1.0);
 
-    // Tray floors (the switch plate) and joystick recess floor
+    // Tray floors (the switch plate) and the joystick recess floor
     for (const t of Object.values(TRAYS)) {
-      const f = add(new THREE.ShapeGeometry(planRect(t.x, t.z, t.x + trayW(t.u), t.z + TRAY_D, 3.4), 8), plateMat, { cast: false });
-      f.rotation.x = -Math.PI / 2; f.position.y = Y_FLOOR;
+      const f = add(new THREE.ShapeGeometry(planRect(t.x, t.z, t.x + trayW(t.u), t.z + TRAY_D, 2.6), 8), plateMat, { cast: false });
+      f.rotation.x = -Math.PI / 2; f.position.y = t.floor;
     }
     const joyFloor = add(new THREE.CircleGeometry(JOY.r + 0.5, 48), plateMat, { cast: false });
-    joyFloor.rotation.x = -Math.PI / 2; joyFloor.position.set(JOY.x, Y_FLOOR + 2, JOY.z);
+    joyFloor.rotation.x = -Math.PI / 2; joyFloor.position.set(JOY.x, TC.floor + 1.5, JOY.z);
 
     // Logo on the slope
-    const angle = Math.atan((Y_TOP - Y_FRONT) / (D / 2 - Z_SLOPE));
-    const logo = add(new THREE.PlaneGeometry(112, 28), new THREE.MeshStandardMaterial({
+    const angle = Math.atan((TC.top - Y_FRONT) / (D / 2 - Z_SLOPE));
+    const logo = add(new THREE.PlaneGeometry(86, 86 / LOGO_ASPECT), new THREE.MeshStandardMaterial({
       map: logoTexture(renderer), transparent: true, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -2,
     }), { cast: false });
     logo.rotation.x = -(Math.PI / 2 - angle);
-    const zLogo = Z_SLOPE + (D / 2 - Z_SLOPE) * 0.52;
-    logo.position.set(-W / 2 + 12 + 56, slopeY(zLogo) + 0.05, zLogo);
+    const zLogo = Z_SLOPE + (D / 2 - Z_SLOPE) * 0.54;
+    logo.position.set(-W / 2 + 13 + 43, slopeY(zLogo) + 0.08, zLogo);
 
-    // Soft contact shadow under the case
+    // Soft contact shadow under the case, and a floor that only shows shadows
     const blob = add(new THREE.PlaneGeometry(W + 60, D + 60), new THREE.MeshBasicMaterial({
       map: radialTexture("rgba(0,0,0,0.75)", "rgba(0,0,0,0)"), transparent: true, depthWrite: false,
     }), { cast: false, receive: false });
@@ -254,96 +338,85 @@ const W909Board3D = (() => {
     // ---------- keys ----------
     const parts = [];
     const leds = [];
-    const capGeoCache = new Map();
-    const housingMat = new THREE.MeshStandardMaterial({ color: "#d8dee6", roughness: 0.25, transparent: true, opacity: 0.38, emissive: "#000000" });
+    const capCache = new Map();
+    const housingMat = new THREE.MeshStandardMaterial({ color: "#d8dee6", roughness: 0.25, transparent: true, opacity: 0.16, emissive: "#000000" });
     const poolTex = radialTexture();
-    const capStipple = noiseTexture(256, 0.5);
-    capStipple.repeat.set(1 / 9, 1 / 9);
-
-    function capGeo(wMM, dMM) {
+    const capGrain = noiseTexture(256, 0.5);
+    capGrain.repeat.set(1 / 9, 1 / 9);
+    const cap = (wMM, dMM) => {
       const k = `${wMM}x${dMM}`;
-      if (capGeoCache.has(k)) return capGeoCache.get(k);
-      const geo = extrudeUp(planRect(-wMM / 2, -dMM / 2, wMM / 2, dMM / 2, 2.4), 0, CAP_H, 1.7, 5, 8);
-      const p = geo.attributes.position;
-      for (let i = 0; i < p.count; i++) { // taper toward the top
-        const t = Math.max(0, p.getY(i)) / CAP_H;
-        p.setX(i, p.getX(i) * (1 - (t * 5.4) / wMM));
-        p.setZ(i, p.getZ(i) * (1 - (t * 5.0) / dMM) - t * 0.6);
-      }
-      smooth(geo, 40);
-      capGeoCache.set(k, geo);
-      return geo;
-    }
+      if (!capCache.has(k)) capCache.set(k, capGeometry(wMM, dMM));
+      return capCache.get(k);
+    };
 
-    function addLed(x, z, wMM, xNorm) {
-      const housing = add(new THREE.BoxGeometry(Math.min(wMM, 15), STEM, 15), housingMat.clone(), { cast: false });
-      housing.position.set(x, Y_FLOOR + STEM / 2, z);
-      const pool = add(new THREE.PlaneGeometry(wMM + 16, 34), new THREE.MeshBasicMaterial({
+    function addLed(x, z, wMM, floorY, xNorm) {
+      const housing = add(new THREE.BoxGeometry(Math.min(wMM, 14), STEM - 0.4, 14), housingMat.clone(), { cast: false });
+      housing.position.set(x, floorY + STEM / 2 - 0.2, z);
+      const pool = add(new THREE.PlaneGeometry(wMM + 6, 24), new THREE.MeshBasicMaterial({
         map: poolTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0,
       }), { cast: false, receive: false });
-      pool.rotation.x = -Math.PI / 2; pool.position.set(x, Y_FLOOR + 0.15, z);
+      pool.rotation.x = -Math.PI / 2; pool.position.set(x, floorY + 0.15, z);
       const led = { housing, pool, x: xNorm };
       leds.push(led);
       return led;
     }
 
-    const ROW_ORDER = ["row-a", "row-b", "row-c"];
-    for (const rowId of ROW_ORDER) {
-      const tray = TRAYS[rowId];
+    for (const [rowId, tray] of Object.entries(TRAYS)) {
       let u = 0;
       for (const el of slots.filter((s) => s.dataset.row === rowId && s.classList.contains("cap"))) {
         const w = Number(el.style.getPropertyValue("--w")) || 1;
         const color = ["orange", "dark", "light"].find((c) => el.classList.contains(c)) || "dark";
         const legend = el.querySelector("small")?.textContent || "";
-        const wMM = w * U - 1.1, dMM = U - 1.1;
+        const wMM = w * U - 0.9, dMM = U - 0.9;
         const x = tray.x + PAD + (u + w / 2) * U, z = tray.z + PAD + U / 2;
         u += w;
-        const top = new THREE.MeshStandardMaterial({ map: legendTexture(legend, color, wMM, dMM, renderer), roughness: 0.6, bumpMap: capStipple, bumpScale: 0.06, emissive: ACCENT, emissiveIntensity: 0 });
-        const side = new THREE.MeshStandardMaterial({ color: COLORS[color], roughness: 0.62, bumpMap: capStipple, bumpScale: 0.06, emissive: ACCENT, emissiveIntensity: 0 });
+        const { geo, topW, topD } = cap(wMM, dMM);
+        const top = new THREE.MeshStandardMaterial({ map: legendTexture(legend, color, topW, topD, renderer), roughness: 0.58, bumpMap: capGrain, bumpScale: 0.03, emissive: ACCENT, emissiveIntensity: 0 });
+        const side = new THREE.MeshStandardMaterial({ color: COLORS[color], roughness: 0.6, bumpMap: capGrain, bumpScale: 0.03, emissive: ACCENT, emissiveIntensity: 0 });
         const group = new THREE.Group();
-        const cap = new THREE.Mesh(capGeo(wMM, dMM), [top, side]);
-        cap.castShadow = cap.receiveShadow = true;
-        cap.rotation.x = tray.tilt;
-        group.add(cap);
-        group.position.set(x, Y_FLOOR + STEM, z);
+        const mesh = new THREE.Mesh(geo, [top, side]);
+        mesh.castShadow = mesh.receiveShadow = true;
+        mesh.rotation.x = tray.tilt;
+        group.add(mesh);
+        group.position.set(x, tray.floor + STEM, z);
         scene.add(group);
-        const led = addLed(x, z, wMM, (x + W / 2) / W);
-        parts.push({ el, led, group, mats: [top, side], baseY: group.position.y, travel: 0, max: TRAVEL, anchor: new THREE.Vector3(x, Y_TOP + 0.5, z + U / 2 + 1.5), hit: cap });
+        const led = addLed(x, z, wMM, tray.floor, (x + W / 2) / W);
+        parts.push({ el, led, group, mats: [top, side], baseY: group.position.y, travel: 0, max: TRAVEL, anchor: new THREE.Vector3(x, tray.top + 0.5, z + U / 2 + 1), hit: mesh });
       }
     }
 
-    // Knob: lathe profile with softened top edge
-    const knobMat = new THREE.MeshStandardMaterial({ color: COLORS.orange, roughness: 0.55, bumpMap: capStipple, bumpScale: 0.12, emissive: ACCENT, emissiveIntensity: 0 });
-    const r = KNOB.r, h = 12.5;
-    const prof = [[0, 0], [r - 0.6, 0], [r, 0.6], [r, h - 1.6], [r - 0.25, h - 0.6], [r - 1.0, h - 0.08], [r - 1.6, h], [0, h]].map(([a, b]) => new THREE.Vector2(a, b));
+    // Knob: lathe profile with a softened top edge
+    const knobMat = new THREE.MeshStandardMaterial({ color: COLORS.orange, roughness: 0.62, bumpMap: capGrain, bumpScale: 0.08, emissive: ACCENT, emissiveIntensity: 0 });
+    const r = KNOB.r, h = 11;
+    const prof = [[0, 0], [r - 0.6, 0], [r, 0.6], [r, h - 1.8], [r - 0.3, h - 0.7], [r - 1.1, h - 0.1], [r - 1.8, h], [0, h]].map(([a, b]) => new THREE.Vector2(a, b));
     const knob = new THREE.Mesh(new THREE.LatheGeometry(prof, 96), knobMat);
     knob.castShadow = knob.receiveShadow = true;
     const knobGroup = new THREE.Group();
     knobGroup.add(knob);
-    knobGroup.position.set(KNOB.x, Y_TOP + 0.8, KNOB.z);
+    knobGroup.position.set(KNOB.x, TA.top + 0.9, KNOB.z);
     scene.add(knobGroup);
-    const knobRing = add(new THREE.CylinderGeometry(r + 0.6, r + 0.6, 0.8, 64), plateMat, { cast: false });
-    knobRing.position.set(KNOB.x, Y_TOP + 0.4, KNOB.z);
+    const knobRing = add(new THREE.CylinderGeometry(r + 0.5, r + 0.5, 0.9, 64), plateMat, { cast: false });
+    knobRing.position.set(KNOB.x, TA.top + 0.45, KNOB.z);
 
     // Joystick: rubber boot, stem and mushroom cap, pivoting at the floor
-    const rubber = new THREE.MeshStandardMaterial({ color: "#121212", roughness: 0.95 });
-    const boot = add(new THREE.TorusGeometry(JOY.r - 3, 2.6, 20, 64), rubber, { cast: false });
-    boot.rotation.x = Math.PI / 2; boot.position.set(JOY.x, Y_FLOOR + 2.6, JOY.z);
-    const joyMat = new THREE.MeshStandardMaterial({ color: COLORS.orange, roughness: 0.5, emissive: ACCENT, emissiveIntensity: 0 });
+    const rubber = new THREE.MeshStandardMaterial({ color: "#111111", roughness: 0.95 });
+    const boot = add(new THREE.TorusGeometry(JOY.r - 3.2, 2.4, 20, 64), rubber, { cast: false });
+    boot.rotation.x = Math.PI / 2; boot.position.set(JOY.x, TC.floor + 2.2, JOY.z);
+    const joyMat = new THREE.MeshStandardMaterial({ color: COLORS.orange, roughness: 0.55, emissive: ACCENT, emissiveIntensity: 0 });
     const joyGroup = new THREE.Group();
-    joyGroup.position.set(JOY.x, Y_FLOOR + 2, JOY.z);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 3.2, 11, 32), joyMat);
-    stem.position.y = 5.5; stem.castShadow = true;
-    const mush = [[0, 0], [5.5, 0], [8.2, 0.9], [8.6, 2.2], [8.4, 3.6], [7.4, 4.3], [4, 4.55], [0, 4.6]].map(([a, b]) => new THREE.Vector2(a, b));
+    joyGroup.position.set(JOY.x, TC.floor + 1.5, JOY.z);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.9, 13, 32), joyMat);
+    stem.position.y = 6.5; stem.castShadow = true;
+    const mush = [[0, 0], [4.2, 0], [6.3, 0.8], [6.7, 2], [6.5, 3.2], [5.7, 3.9], [3, 4.15], [0, 4.2]].map(([a, b]) => new THREE.Vector2(a, b));
     const joyCap = new THREE.Mesh(new THREE.LatheGeometry(mush, 64), joyMat);
-    joyCap.position.y = 11; joyCap.castShadow = true;
+    joyCap.position.y = 13; joyCap.castShadow = true;
     joyGroup.add(stem, joyCap);
     scene.add(joyGroup);
 
     const special = (sel) => slots.find((s) => s.matches(sel));
     const knobEl = special('[data-key="2"]'), joyEl = special('[data-key="42"]');
-    if (knobEl) parts.push({ el: knobEl, group: knobGroup, mats: [knobMat], baseY: knobGroup.position.y, travel: 0, max: 1.4, anchor: new THREE.Vector3(KNOB.x, Y_TOP + 0.5, KNOB.z - r - 1), hit: knob });
-    if (joyEl) parts.push({ el: joyEl, group: joyGroup, mats: [joyMat], baseY: joyGroup.position.y, travel: 0, max: 1.5, anchor: new THREE.Vector3(JOY.x, Y_TOP + 0.5, JOY.z + JOY.r + 3), hit: [stem, joyCap], joystick: true });
+    if (knobEl) parts.push({ el: knobEl, group: knobGroup, mats: [knobMat], baseY: knobGroup.position.y, travel: 0, max: 1.4, anchor: new THREE.Vector3(KNOB.x, TA.top + 0.5, KNOB.z - r - 1), hit: knob });
+    if (joyEl) parts.push({ el: joyEl, group: joyGroup, mats: [joyMat], baseY: joyGroup.position.y, travel: 0, max: 1.5, anchor: new THREE.Vector3(JOY.x, TC.top + 0.5, JOY.z + JOY.r + 3), hit: [stem, joyCap], joystick: true });
 
     return { parts, leds, joyGroup };
   }
@@ -393,7 +466,7 @@ const W909Board3D = (() => {
     key.shadow.bias = -0.0003;
     key.shadow.normalBias = 0.25;
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0xffe0b8, 0.5);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.45);
     rim.position.set(150, 90, -160);
     scene.add(rim);
     scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x1a1410, 0.12));
@@ -401,17 +474,18 @@ const W909Board3D = (() => {
     const model = build(scene, renderer, slots);
     const trayLights = Object.values(TRAYS).map((t) => {
       const l = new THREE.PointLight(0xffffff, 0, 70, 2);
-      l.position.set(t.x + trayW(t.u) / 2, Y_FLOOR + 3, t.z + TRAY_D / 2);
+      l.position.set(t.x + trayW(t.u) / 2, t.floor + 3, t.z + TRAY_D / 2);
       scene.add(l);
       return l;
     });
 
     const camera = new THREE.PerspectiveCamera(28, 1, 10, 4000);
-    const target = new THREE.Vector3(0, 12, 4);
-    const HOME = { yaw: -0.32, pitch: 0.92 };
+    const target = new THREE.Vector3(0, 11, 4);
+    const HOME = { yaw: -0.3, pitch: 0.86 };
     const view = { ...HOME };
     const aim = { ...HOME };
     let dist = 500;
+    let zoomBy = 1;
     let lastTouch = -1e9;
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -482,14 +556,14 @@ const W909Board3D = (() => {
       requestAnimationFrame(frame);
       if (!box.clientWidth) return;
       const t = now / 1000;
-      const idle = !calm && now - lastTouch > 4000 ? 1 : 0;
+      const idle = !calm && lastTouch !== Infinity && now - lastTouch > 4000 ? 1 : 0;
       const sway = idle * Math.sin(t * 0.25) * 0.07;
       view.yaw += (aim.yaw + sway - view.yaw) * 0.08;
       view.pitch += (aim.pitch + idle * Math.sin(t * 0.19) * 0.025 - view.pitch) * 0.08;
       camera.position.set(
-        target.x + dist * Math.sin(view.yaw) * Math.cos(view.pitch),
-        target.y + dist * Math.sin(view.pitch),
-        target.z + dist * Math.cos(view.yaw) * Math.cos(view.pitch));
+        target.x + (dist / zoomBy) * Math.sin(view.yaw) * Math.cos(view.pitch),
+        target.y + (dist / zoomBy) * Math.sin(view.pitch),
+        target.z + (dist / zoomBy) * Math.cos(view.yaw) * Math.cos(view.pitch));
       camera.lookAt(target);
 
       const w = box.clientWidth, h = box.clientHeight;
@@ -520,9 +594,9 @@ const W909Board3D = (() => {
         if (on) {
           glowColor.setStyle(`rgb(${c.map((x) => Math.round(x)).join(",")})`);
           led.pool.material.color.copy(glowColor);
-          led.pool.material.opacity = 0.7;
+          led.pool.material.opacity = 0.42;
           led.housing.material.emissive.copy(glowColor);
-          led.housing.material.emissiveIntensity = 0.9;
+          led.housing.material.emissiveIntensity = 0.5;
           total = total.map((s, i) => s + c[i]);
         } else led.housing.material.emissiveIntensity = 0;
       }
@@ -544,6 +618,13 @@ const W909Board3D = (() => {
       renderer.render(scene, camera);
     }
     requestAnimationFrame(frame);
+    // For screenshots: data-view="yaw,pitch,zoom" on the board poses the camera and stops the idle sway.
+    new MutationObserver(() => {
+      const [yaw, pitch, zoom = 1] = (box.dataset.view || "").split(",").map(Number);
+      if (Number.isNaN(yaw) || Number.isNaN(pitch)) return;
+      Object.assign(aim, { yaw, pitch }); Object.assign(view, { yaw, pitch });
+      lastTouch = Infinity; zoomBy = zoom;
+    }).observe(box, { attributes: true, attributeFilter: ["data-view"] });
     return true;
   }
 
