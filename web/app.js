@@ -458,6 +458,27 @@
     });
   }
 
+  // Roughly what the pad's LEDs show, for the 3D board: [r, g, b] for a key at x (0 = left, 1 = right), or null.
+  function padGlow(t, x) {
+    if (show) return W909Effects.color(W909Effects.LIST[show.index], (performance.now() - show.started) / 1000);
+    const light = state?.light;
+    const mode = light ? light.header[0] & 0x3f : 0;
+    const rec = light?.modes[mode];
+    if (!rec) return null; // LED off, or not loaded
+    const k = 0.3 + (0.7 * Math.min(6, rec[0])) / 6;
+    const colors = [0, 1, 2, 3, 4, 5, 6].filter((i) => rec[3] & (1 << i)).map((i) => Array.from(rec.slice(4 + i * 3, 7 + i * 3)));
+    const scale = (c, f) => c.map((v) => v * f);
+    if (mode === CONSTANT) return scale(colors[0] || Array.from(rec.slice(4, 7)), k);
+    const p = t * (0.15 + rec[1] * 0.08);
+    const wave = mode === 2 || mode === 3 || mode === 7 || mode === 8; // flowing/mono water, neon, ambilight
+    if (wave) {
+      const pos = p - x * 0.8;
+      return scale(colors.length ? colors[Math.abs(Math.floor(pos * 2)) % colors.length] : W909Effects.hsv(((pos % 1) + 1) % 1), k);
+    }
+    const c = colors.length ? colors[Math.floor(p) % colors.length] : W909Effects.hsv((p * 0.25) % 1);
+    return scale(c, k * (0.15 + 0.85 * (0.5 - 0.5 * Math.cos(p * 2 * Math.PI)))); // breathing
+  }
+
   // ---------- light shows ----------
   // The page animates the pad by rewriting Constant mode's color, then the header (the LEDs only refresh on a
   // header write). Every write is saved by the keyboard, so shows stop on their own and then put the lighting back.
@@ -622,6 +643,9 @@
     }
     initHelp();
     buildBoard();
+    // 3D board when WebGL is available; otherwise the 2D board stays.
+    try { if (typeof W909Board3D !== "undefined") W909Board3D.mount($(".board-wrap"), { glow: padGlow }); }
+    catch (e) { console.error("3D board failed", e); }
     showOffline();
     fillSelects();
     buildShows();

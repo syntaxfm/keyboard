@@ -116,7 +116,7 @@ body.read-only .tabs, body.read-only #ed-capture, body.read-only #ed-sc-capture 
 .offline-msg { display: none; }
 body.offline .toolbar, body.offline #editor, body.offline #lighting, body.offline #shows, body.offline #power,
 body.offline details.card, body.offline .pad-wrap > p { display: none; }
-body.offline .board, body.offline .extras { filter: grayscale(1) brightness(.75); opacity: .45; pointer-events: none; user-select: none; }
+body.offline .board, body.offline .board3d, body.offline .extras { filter: grayscale(1) brightness(.75); opacity: .45; pointer-events: none; user-select: none; }
 body.offline .offline-msg { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
   position: absolute; z-index: 2; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 18px 26px;
   background: #15171ce6; border: 1px solid var(--line); border-radius: 12px; width: 380px; box-shadow: 0 10px 30px #0009; }
@@ -130,3 +130,28 @@ body.offline .offline-msg span { color: var(--muted); font-size: 13px; }
 .show-list button.on { border-color: var(--hit); box-shadow: 0 0 0 1px var(--hit) inset; }
 .show-list .swatch { grid-row: span 2; align-self: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); }
 .show-list small { color: var(--muted); font-size: 11px; }
+/* ---- 3D board ---- */
+.board-wrap.three-d { width: 100%; }
+.three-d #board { display: none; }
+.board3d { position: relative; width: 100%; aspect-ratio: 16 / 11; min-height: 320px; max-height: 640px; border-radius: 16px; overflow: hidden;
+  background: radial-gradient(120% 90% at 45% 30%, #2a2e38 0%, #181b22 55%, #111318 100%); border: 1px solid var(--line); }
+.board3d canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
+.board3d.dragging canvas { cursor: grabbing; }
+.board3d .labels { position: absolute; inset: 0; pointer-events: none; }
+.board3d .slot { position: absolute; left: 0; top: 0; width: auto; height: auto; max-width: 104px; padding: 2px 8px; margin: 0;
+  flex-direction: row; border-radius: 999px; border: 1px solid #ffffff24; background: #0b0d12cc; color: var(--text);
+  box-shadow: 0 2px 8px #0007; backdrop-filter: blur(6px); pointer-events: auto; will-change: transform; transition: border-color .15s, background .15s; }
+.board3d .slot small { display: none; }
+.board3d .slot span { margin: 0; font-size: 11px; font-weight: 600; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: inherit; opacity: 1; }
+.board3d .slot:hover { border-color: #ffffff66; }
+.board3d .slot.macro span { color: #c9a6ff; }
+.board3d .slot.none span { opacity: .5; font-weight: 400; }
+.board3d .slot.selected { border-color: var(--accent); background: #1c2756e6; outline: none; }
+.board3d .slot.pressed { border-color: var(--hit); box-shadow: 0 0 14px var(--hit); }
+.board3d .hint { position: absolute; right: 12px; bottom: 10px; font-size: 11px; color: var(--muted); pointer-events: none; opacity: .8; }
+@media (max-width: 600px) {
+  .board3d { aspect-ratio: 1 / 1; min-height: 0; }
+  .board3d .slot { padding: 1px 6px; max-width: 72px; }
+  .board3d .slot span { font-size: 9.5px; line-height: 14px; }
+  .board3d .hint { display: none; }
+}
