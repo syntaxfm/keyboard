@@ -1,0 +1,18 @@
+# --- Vendor material: the manufacturer's copyrighted software. Keep it local, never publish. ---
+vendor-downloads/
+xfp-win/
+*.exe
+*.dll
+*.zip
+
+# Reverse-engineering workspace (disassembly, scripts). Findings live in device-info/ instead.
+reverse-engineering/
+
+# Compiled tool binaries (build from the .swift sources)
+tools/w909
+tools/w909-bridge
+
+# Local clutter
+.DS_Store
+.chrome-test/
+node_modules/
