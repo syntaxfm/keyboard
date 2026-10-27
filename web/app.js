@@ -86,8 +86,16 @@
   // ---------- connection ----------
   const DEMO = new URLSearchParams(location.search).has("demo");
 
+  // Returns true once connected. Guarded so a plug-in event and a click can't open the keyboard twice.
+  let connecting = false;
   async function connect(auto = false) {
-    if (!W909.Device.isSupported() && !DEMO) return;
+    if (connecting || dev) return !!dev;
+    connecting = true;
+    try { return await openKeyboard(auto); } finally { connecting = false; }
+  }
+
+  async function openKeyboard(auto) {
+    if (!W909.Device.isSupported() && !DEMO) return false;
     try {
       if (DEMO) dev = new W909.Device(W909Mock.create(new URLSearchParams(location.search).get("demo") === "receiver" ? 0x4101 : 0x4100), log);
       else dev = auto ? await W909.Device.reconnect(log) : await W909.Device.request(log);
@@ -95,11 +103,12 @@
       console.error(e);
       // Cancelling the browser's device picker throws NotFoundError; anything else is a real failure (often permissions).
       if (!auto && e.name !== "NotFoundError") showHelp(`Couldn't open the keyboard (${e.message})`);
-      return;
+      dev = null;
+      return false;
     }
     if (!dev) {
       if (!auto) showHelp("No W909 selected. Pick the one named “W909 Pro USB”");
-      return;
+      return false;
     }
     localStorage.setItem("w909-connected", "1");
     $$(".help").forEach((p) => { p.open = false; p.classList.remove("alert"); });
@@ -111,6 +120,7 @@
     setReadOnly(dev.hid.productId === 0x4101);
     dev.onKeys(onPadKeys);
     await busy(loadAll);
+    return true;
   }
 
   // Over the 2.4G receiver the keyboard answers reads but ignores writes, so lock editing.
@@ -131,7 +141,8 @@
     show = null;
     renderShows();
     held = new Set();
-    if (dev) await dev.close();
+    // An unplugged device can fail to close; still reset, or the page would think it's connected.
+    try { if (dev) await dev.close(); } catch (e) { console.error(e); }
     dev = null;
     $("#status").textContent = "Not connected";
     $("#connect").textContent = "Connect keyboard";
@@ -153,6 +164,20 @@
 
   navigator.hid?.addEventListener("disconnect", (e) => {
     if (dev && e.device === dev.hid) { disconnect(true); toast("Keyboard disconnected", true); }
+  });
+
+  // Plugging a keyboard back in reconnects without the picker (the browser remembers the permission).
+  // Chrome fires one event per HID interface and the device can take a moment to open, so settle, then retry.
+  let replugTimer = 0;
+  navigator.hid?.addEventListener("connect", (e) => {
+    if (dev || DEMO || !W909.VIDS.includes(e.device.vendorId) || !W909.PIDS[e.device.productId]) return;
+    clearTimeout(replugTimer);
+    const attempt = async (left) => {
+      if (dev) return;
+      if (await connect(true)) toast("Keyboard reconnected");
+      else if (left > 0) replugTimer = setTimeout(() => attempt(left - 1), 800);
+    };
+    replugTimer = setTimeout(() => attempt(3), 400);
   });
 
   // ---------- loading ----------
@@ -458,6 +483,27 @@
     });
   }
 
+  // Roughly what the pad's LEDs show, for the 3D board: [r, g, b] for a key at x (0 = left, 1 = right), or null.
+  function padGlow(t, x) {
+    if (show) return W909Effects.color(W909Effects.LIST[show.index], (performance.now() - show.started) / 1000);
+    const light = state?.light;
+    const mode = light ? light.header[0] & 0x3f : 0;
+    const rec = light?.modes[mode];
+    if (!rec) return null; // LED off, or not loaded
+    const k = 0.3 + (0.7 * Math.min(6, rec[0])) / 6;
+    const colors = [0, 1, 2, 3, 4, 5, 6].filter((i) => rec[3] & (1 << i)).map((i) => Array.from(rec.slice(4 + i * 3, 7 + i * 3)));
+    const scale = (c, f) => c.map((v) => v * f);
+    if (mode === CONSTANT) return scale(colors[0] || Array.from(rec.slice(4, 7)), k);
+    const p = t * (0.15 + rec[1] * 0.08);
+    const wave = mode === 2 || mode === 3 || mode === 7 || mode === 8; // flowing/mono water, neon, ambilight
+    if (wave) {
+      const pos = p - x * 0.8;
+      return scale(colors.length ? colors[Math.abs(Math.floor(pos * 2)) % colors.length] : W909Effects.hsv(((pos % 1) + 1) % 1), k);
+    }
+    const c = colors.length ? colors[Math.floor(p) % colors.length] : W909Effects.hsv((p * 0.25) % 1);
+    return scale(c, k * (0.15 + 0.85 * (0.5 - 0.5 * Math.cos(p * 2 * Math.PI)))); // breathing
+  }
+
   // ---------- light shows ----------
   // The page animates the pad by rewriting Constant mode's color, then the header (the LEDs only refresh on a
   // header write). Every write is saved by the keyboard, so shows stop on their own and then put the lighting back.
@@ -622,6 +668,9 @@
     }
     initHelp();
     buildBoard();
+    // 3D board when WebGL is available; otherwise the 2D board stays.
+    try { if (typeof W909Board3D !== "undefined") W909Board3D.mount($(".board-wrap"), { glow: padGlow }); }
+    catch (e) { console.error("3D board failed", e); }
     showOffline();
     fillSelects();
     buildShows();

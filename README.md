@@ -24,6 +24,8 @@ Remap everything right from a web page, with no app to download.
 - **Light shows:** animations played from the page (pulse, heartbeat, candle, police, strobe…) for 30 seconds,
   then your lighting comes back.
 - **Press a key on the pad to select it** in the editor.
+- **3D model of the pad** you can turn around. Click a keycap to edit it; held keys sink, the joystick tilts, and the
+  switches glow with the current lighting.
 - **Power saving:** a sleep timer.
 - **Backup, restore and factory reset** of a profile, using JSON files.
 - Changes are written straight to the keyboard and survive unplugging.
@@ -78,6 +80,7 @@ web/                 the configurator (plain HTML/CSS/JS, no build step)
   w909-keys.js                    key/action tables, macro encoding, factory defaults
   w909-mock.js                    in-memory keyboard for ?demo
   w909-effects.js                 light show animations
+  w909-board3d.js                 3D board (three.js, in vendor/)
 device-info/         everything we learned: sources, findings, protocol reference, raw dumps
 tools/               macOS command-line probe (Swift) and a protocol test harness
 ```

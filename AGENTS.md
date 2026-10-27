@@ -7,9 +7,16 @@ A WebHID configurator for the Syntax W909 macro pad (USB `b6a4:4100` cable, `b6a
 The protocol reference is `device-info/PROTOCOL.md`; read it before touching device code. Sources, findings and open questions are in `device-info/README.md`.
 
 ## Layout
-- `web/` is the shipped app: plain HTML/CSS/JS, **no build step, no modules, no dependencies**. Scripts load as classic
-  `<script>` tags in this order: `w909-protocol.js` → `w909-keys.js` → `w909-mock.js` → `w909-effects.js` → `app.js`. Each file defines one global
-  (`W909`, `W909Keys`, `W909Mock`, `W909Effects`); `app.js` is an IIFE.
+- `web/` is the shipped app: plain HTML/CSS/JS, **no build step, no modules**. The one dependency is three.js r149,
+  checked in as `web/vendor/three.min.js` (MIT, UMD build) for the 3D board. Scripts load as classic `<script>` tags in this
+  order: `w909-protocol.js` → `w909-keys.js` → `w909-mock.js` → `w909-effects.js` → `vendor/three.min.js` →
+  `w909-board3d.js` → `app.js`. Each file defines one global (`W909`, `W909Keys`, `W909Mock`, `W909Effects`, `THREE`,
+  `W909Board3D`); `app.js` is an IIFE.
+- The 3D board (`w909-board3d.js`) takes over the 2D `#board`: the key buttons from `buildBoard()` become floating labels
+  and clicking a cap clicks its button, so selection stays in `app.js`. It reads `selected`/`pressed` classes each frame.
+  Without WebGL the 2D board stays, so keep both working. To screenshot fixed angles, set `data-view="yaw,pitch,zoom"`
+  on `.board3d` (e.g. `-1.45,0.12,1.5` is the left side, `3.14,0.15,1.4` the back) and compare against photos of the pad.
+  The Syntax wordmark on the front is `web/syntax-wordmark.svg` (from syntaxfm.github.io/brand).
 - `tools/`: Swift probes (`w909.swift`, `w909-bridge.swift`) and `test-protocol.mjs`, which runs the real web protocol code under Node against the keyboard.
 - `device-info/`: the single home for what we know about the device (sources with links, findings, protocol, raw dumps).
   Record new findings there.

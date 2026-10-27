@@ -40,5 +40,5 @@ const W909Effects = (() => {
   ];
 
   const color = (effect, t) => effect.fn(t).map(clamp);
-  return { LIST, color };
+  return { LIST, color, hsv };
 })();
